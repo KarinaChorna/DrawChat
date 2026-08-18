@@ -198,6 +198,7 @@ class MessagingApp {
 
     setupEventListeners() {
         this.sendButton.addEventListener('click', () => this.sendMessage());
+
         this.messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -207,13 +208,18 @@ class MessagingApp {
 
         // Handle offline/online events
         window.addEventListener('online', () => this.processMessageQueue());
+
         window.addEventListener('offline', () => {
-            this.addMessageToHistory('system', 'You are currently offline. Messages will be sent when connection is restored.');
+            this.addMessageToHistory(
+                'system',
+                'You are currently offline. Messages will be sent when connection is restored.'
+            );
         });
     }
 
     async sendMessage() {
         const message = this.messageInput.value.trim();
+
         if (!message) return;
 
         this.addMessageToHistory('user', message);
@@ -223,46 +229,56 @@ class MessagingApp {
             await this.sendToChatGPT(message);
         } else {
             this.messageQueue.push(message);
-            this.addMessageToHistory('system', 'Message queued for sending when online');
+            this.addMessageToHistory(
+                'system',
+                'Message queued for sending when online'
+            );
             this.saveMessageQueue();
         }
     }
 
     async sendToChatGPT(message) {
         try {
-            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: "gpt-4o-mini",
-                    messages: [{
-                        role: "user",
-                        content: message
-                    }]
+                    message: message
                 })
             });
 
             const data = await response.json();
-            this.addMessageToHistory('assistant', data.choices[0].message.content);
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to get response');
+            }
+
+            this.addMessageToHistory('assistant', data.response);
             this.saveMessageHistory();
+
         } catch (error) {
-            console.error('Error sending message to ChatGPT:', error);
-            this.addMessageToHistory('system', 'Error sending message to ChatGPT');
+            console.error('Error sending message:', error);
+
+            this.addMessageToHistory(
+                'system',
+                'Error sending message to ChatGPT'
+            );
         }
     }
 
     addMessageToHistory(role, content) {
-
-        // remove any prefixes 
-        const cleanContent = content.replace(/^(user|assistant|system):\s*/i, '');
+        // Remove any prefixes
+        const cleanContent = content.replace(
+            /^(user|assistant|system):\s*/i,
+            ''
+        );
 
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('message', role);
 
-        // display the prefixes here 
+        // Display the prefixes here
         messageDiv.textContent = `${role}: ${cleanContent}`;
 
         this.messageHistory.appendChild(messageDiv);
@@ -271,24 +287,31 @@ class MessagingApp {
         this.saveMessageHistory();
     }
 
-
     saveMessageHistory() {
         const messages = Array.from(this.messageHistory.children).map(msg => {
             const role = msg.classList[1];
 
-            // remove prefixes before saving
-            const raw = msg.textContent.replace(/^(user|assistant|system):\s*/i, '');
+            // Remove prefixes before saving
+            const raw = msg.textContent.replace(
+                /^(user|assistant|system):\s*/i,
+                ''
+            );
 
-            return { role, content: raw };
+            return {
+                role,
+                content: raw
+            };
         });
 
-        localStorage.setItem('messageHistory', JSON.stringify(messages));
+        localStorage.setItem(
+            'messageHistory',
+            JSON.stringify(messages)
+        );
     }
 
-
     loadMessageHistory() {
-        localStorage.clear();
         const saved = localStorage.getItem('messageHistory');
+
         if (!saved) return;
 
         JSON.parse(saved).forEach(msg => {
@@ -296,13 +319,16 @@ class MessagingApp {
         });
     }
 
-
     saveMessageQueue() {
-        localStorage.setItem('messageQueue', JSON.stringify(this.messageQueue));
+        localStorage.setItem(
+            'messageQueue',
+            JSON.stringify(this.messageQueue)
+        );
     }
 
     async processMessageQueue() {
         const savedQueue = localStorage.getItem('messageQueue');
+
         if (savedQueue) {
             this.messageQueue = JSON.parse(savedQueue);
         }
